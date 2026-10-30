@@ -1,0 +1,500 @@
+---
+title: "project_code v2"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r}
+apple_quality <- read.csv("C:/Users/kcluv/OneDrive/Documents/Loyola/2025 Fall/STAT408/Project/data/apple_quality_v1.csv", na.strings = c("", "-999"))
+
+remove_column_apple_quality <- subset(apple_quality, select = -A_id)
+cleaned_apple_quality <- na.omit(remove_column_apple_quality)
+
+```
+
+Boxplot:
+
+```{r}
+boxplot_data <- boxplot(cleaned_apple_quality[, c("Size", "Weight", "Sweetness", "Crunchiness", "Juiciness", "Ripeness", "Acidity")])
+print(boxplot_data$stats)
+#Outliers
+print(boxplot_data$out)
+```
+
+Single Linear Regression:
+
+```{r}
+ggplot(data=cleaned_apple_quality,
+       aes(x=Size,y=Weight)) +
+  geom_point()
+```
+
+```{r}
+mod <- lm(Weight ~ Size, data = cleaned_apple_quality)
+summary(mod)
+```
+
+Residual Plot
+
+```{r}
+plot(mod, 1)
+```
+
+Breusch-Pagan Test
+
+```{r}
+library(lmtest)
+bptest(mod)
+```
+
+Quantile-Quantile (QQ) Plot - Normally Distributed
+
+```{r}
+plot(mod,2)
+```
+
+Kolmogorov-Smirnov Test - Normally Distributed
+
+```{r}
+ks.test(rstandard(mod),"pnorm")
+```
+
+Assumptions of homoscedasticity are violated, low p-value. Normally distributed residuals are not violated, high p-value.
+
+```{r}
+ggplot(data=cleaned_apple_quality,
+       aes(x=Sweetness,y=Weight)) +
+  geom_point()
+```
+
+```{r}
+mod <- lm(Weight ~ Sweetness, cleaned_apple_quality)
+summary(mod)
+```
+
+Ripeness
+
+```{r}
+ggplot(data=cleaned_apple_quality,
+       aes(x=Ripeness,y=Weight)) +
+  geom_point()
+```
+
+```{r}
+mod <- lm(Weight ~ Ripeness, cleaned_apple_quality)
+summary(mod)
+```
+
+```{r}
+ggplot(data=cleaned_apple_quality,
+       aes(x=Juiciness,y=Weight)) +
+  geom_point()
+```
+
+```{r}
+ggplot(data=cleaned_apple_quality,
+       aes(x=Crunchiness,y=Weight)) +
+  geom_point()
+mod <- lm(Weight ~ Crunchiness, cleaned_apple_quality)
+summary(mod)
+```
+
+```{r}
+mod <- lm(Weight ~ Juiciness, cleaned_apple_quality)
+summary(mod)
+```
+
+Confounding & Interactions
+
+```{r}
+mod_all <- lm(Weight ~ .*., cleaned_apple_quality)
+summary(mod_all)
+```
+
+Variable Selection
+
+```{r}
+mod_max <- lm(Weight ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2), cleaned_apple_quality)
+summary(mod_max)
+```
+
+Backward Selection
+
+```{r}
+mod_best <- step(mod_max,direction="backward",trace=0) 
+summary(mod_best)
+```
+
+Forward Selection
+
+```{r}
+mod_best <- step(mod_max,direction="both")
+```
+
+Assumptions
+
+```{r}
+plot(mod_best,1)
+plot(mod_best,2)
+```
+
+```{r}
+library(lmtest)
+bptest(mod_best)
+```
+
+```{r}
+ks.test(rstandard(mod_best),"pnorm")
+```
+
+Transformation
+
+```{r}
+mod_max_log <- lm(log(Weight) ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2), data = cleaned_apple_quality)
+mod_best_log <- step(mod_max_log,direction="both",trace=0)
+plot(mod_best_log,1)
+```
+
+```{r}
+plot(mod_best_log,2)
+```
+
+```{r}
+library(lmtest)
+bptest(mod_best_log)
+ks.test(rstandard(mod_best_log),"pnorm")
+```
+
+Log transformation helped homoscedasticity, normality failed.
+
+Square Root Transformation
+
+```{r}
+mod_max_sqrt <- lm(sqrt(Weight) ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2), data = cleaned_apple_quality)
+mod_best_sqrt <- step(mod_max_sqrt,direction="both",trace=0)
+plot(mod_best_sqrt,1)
+
+plot(mod_best_sqrt,2)
+```
+
+```{r}
+library(lmtest)
+bptest(mod_best_sqrt)
+ks.test(rstandard(mod_best_sqrt),"pnorm")
+```
+
+Homoscedasticity points are somewhat random and p-val (0.012) not met. Normality met.
+
+Squared Transformation
+
+```{r}
+mod_max_sqed <- lm(I(Weight^2) ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2), data = cleaned_apple_quality)
+mod_best_sqed <- step(mod_max_sqed,direction="both",trace=0)
+plot(mod_best_sqed,1)
+
+plot(mod_best_sqed,2)
+```
+
+```{r}
+library(lmtest)
+bptest(mod_best_sqed)
+ks.test(rstandard(mod_best_sqed),"pnorm")
+```
+
+Worse! Both failed.
+
+Spline Regression
+
+Box-Cox Transformation
+
+```{r}
+library(MASS)
+cleaned_apple_quality$Weight_shifted <- cleaned_apple_quality$Weight + 7
+cleaned_apple_quality$Weight <- NULL
+mod_max_shifted <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2), data = cleaned_apple_quality)
+mod_best_shifted <- step(mod_max_shifted,direction="both")
+bc <- boxcox(mod_best_shifted)
+```
+
+```{r}
+bc$x[which.max(bc$y)]
+```
+
+$\lambda = 1.07$ is the optimal value for $\lambda$.
+
+```{r}
+plot(mod_best_shifted,1)
+plot(mod_best_shifted,2)
+bptest(mod_best_shifted)
+ks.test(rstandard(mod_best_shifted), "pnorm")
+```
+
+Remove the influential points, then it should work
+
+Influential Points
+
+WORKED!!!
+
+```{r}
+# 1st removal
+outlier_1 <- which.max(abs(residuals(mod_best_shifted)))
+outlier_1 <- unname(outlier_1)
+new_data_1 <- cleaned_apple_quality[-outlier_1, ]
+new_model_1 <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2),
+                  data = new_data_1)
+
+plot(new_model_1, which = 1)
+plot(fitted(new_model_1),rstudent(new_model_1))
+
+# 2nd removal
+outlier_2 <- which.max(abs(residuals(new_model_1)))
+outlier_2 <- unname(outlier_2)
+new_data_2 <- new_data_1[-outlier_2, ]
+new_model_2 <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2),
+                  data = new_data_2)
+
+plot(new_model_2, which = 1)
+plot(fitted(new_model_2),rstudent(new_model_2))
+
+# 3rd removal
+outlier_3 <- which.max(abs(residuals(new_model_2)))
+outlier_3 <- unname(outlier_3)
+new_data_3 <- new_data_2[-outlier_3, ]
+new_model_3 <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2),
+                  data = new_data_3)
+
+plot(new_model_3, which = 1)
+plot(fitted(new_model_3),rstudent(new_model_3))
+
+# 4th removal
+outlier_4 <- which.max(abs(residuals(new_model_3)))
+outlier_4 <- unname(outlier_4)
+new_data_4 <- new_data_3[-outlier_4, ]
+new_model_4 <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2),
+                  data = new_data_4)
+
+plot(new_model_4, which = 1)
+plot(fitted(new_model_4),rstudent(new_model_4))
+
+# 5th removal
+outlier_5 <- which.max(abs(residuals(new_model_4)))
+outlier_5 <- unname(outlier_5)
+new_data_5 <- new_data_4[-outlier_5, ]
+new_model_5 <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2),
+                  data = new_data_5)
+
+plot(new_model_5, which = 1)
+plot(fitted(new_model_5),rstudent(new_model_5))
+```
+
+```{r}
+outlier_1
+outlier_2
+outlier_3
+outlier_4
+outlier_5
+
+
+#nrow(new_data_4) - nrow(new_data_5)
+```
+
+```{r}
+bc1 <- boxcox(new_model_1)
+bc1$x[which.max(bc1$y)]
+
+bc2 <- boxcox(new_model_2)
+bc2$x[which.max(bc2$y)]
+
+bc3 <- boxcox(new_model_3)
+bc3$x[which.max(bc3$y)]
+
+bc4 <- boxcox(new_model_4)
+bc4$x[which.max(bc4$y)]
+
+bc5 <- boxcox(new_model_5)
+bc5$x[which.max(bc5$y)]
+```
+
+```{r}
+hatvalues(mod_best_shifted)
+```
+
+```{r}
+plot(fitted(mod_best_shifted),rstudent(mod_best_shifted))
+plot(fitted(new_model_5),rstudent(new_model_5))
+```
+
+```{r}
+rstud <- rstudent(mod_best_shifted)
+id <- which.max(abs(rstud))
+n <- nrow(cleaned_apple_quality)
+k <- 4
+alpha <- 0.01
+crit <- qt(1-alpha/2,n-1-k)
+abs(rstud)[id] > crit
+```
+
+Assumptions for Model 5
+
+```{r}
+mod_max_shifted_5 <- lm(Weight_shifted ~ .*. + I(Size^2) + I(Sweetness^2) + I(Ripeness^2), data = new_data_5)
+mod_best_shifted_5 <- step(mod_max_shifted,direction="both")
+bc <- boxcox(mod_best_shifted_5)
+```
+
+```{r}
+plot(fitted(new_model_5),rstudent(new_model_5))
+plot(new_model_5,1)
+plot(new_model_5,2)
+bptest(new_model_5)
+ks.test(rstandard(new_model_5), "pnorm")
+```
+
+```{r}
+# Cook's Distance
+cooks.distance(mod_best_shifted)[1] > 4/(n-k-1)
+```
+
+```{r}
+summary(mod_best_shifted_5)
+```
+
+Root Mean Square Error 
+
+```{r}
+pred <- predict(mod_best_shifted_5, newdata = new_data_5)
+rmse <- sqrt(mean((pred - new_data_5$Weight_shifted)^2, na.rm = TRUE))
+rmse
+
+```
+
+Regularization - using new_data_5 since outliers have been removed and Weight_shifted is the predicted y value
+
+```{r}
+x_vars <- data.matrix(new_data_5[,c("Size", "Sweetness", "Crunchiness", "Juiciness", "Ripeness", "Acidity", "Quality")])
+Y <- new_data_5[, "Weight_shifted"]
+
+library(glmnet)
+
+# alpha = 1 means LASSO regression
+mod_0 <- glmnet(x_vars,Y, alpha = 1, lambda = 0)
+mod_1 <- glmnet(x_vars,Y, alpha = 1, lambda = 1)
+mod_5 <- glmnet(x_vars,Y, alpha = 1, lambda = 5)
+mod_10 <- glmnet(x_vars,Y, alpha = 1, lambda = 10)
+
+cv <- cv.glmnet(x_vars, Y, alpha = 1)
+plot(cv$glmnet.fit, xvar = "lambda")
+
+ # Ridge Regression
+ridge_model <- glmnet(x_vars, Y, alpha = 0)
+
+# LASSO Regression
+lasso_model <- glmnet(x_vars, Y, alpha = 1)
+```
+
+```{r}
+set.seed(123)   # for reproducibility
+
+train_index <- sample(1:nrow(new_data_5), size = 0.75 * nrow(new_data_5)) 
+
+train_data <- new_data_5[train_index, ]
+test_data  <- new_data_5[-train_index, ]
+train_data$Type <- "Train"
+test_data$Type <- "Test"
+
+mod <- lm(Weight_shifted ~ .,new_data_5)
+x_train <- data.matrix(train_data[, c("Size","Sweetness","Crunchiness",
+                                      "Juiciness","Ripeness","Acidity","Quality")])
+y_train <- train_data$Weight_shifted
+x_test <- data.matrix(test_data[, c("Size","Sweetness","Crunchiness",
+                                    "Juiciness","Ripeness","Acidity","Quality")])
+y_test <- test_data$Weight_shifted
+
+# Note, y_pred is the predictions of the out-of-sample data points from our in sample predictions
+mean(resid(mod))
+var(resid(mod))
+#mean(y_pred)
+#var(y_pred) 
+
+
+library(glmnet)
+
+X <- model.matrix(Weight_shifted ~ ., new_data_5)
+y <- new_data_5$Weight_shifted
+
+# LASSO
+lam_lasso <- cv.glmnet(x=X, y=y,nfolds=5,alpha=1)
+# alpha = 1 means we are doing LASSO
+plot(lam_lasso) # Plots the estimates of the lambda parameters plus a 95% confidence intervals
+lam_lasso
+# min is the value of lambda that minimizes the MSPE and 1se adds a standard error to it
+lambda_lasso <- lam_lasso$lambda.min
+
+# Ridge
+lam_ridge <- cv.glmnet(x=X,y=y,nfolds=5,alpha=0)
+plot(lam_ridge)
+lam_ridge
+lambda_ridge <- lam_ridge$lambda.min
+
+# Let's see which one produces the smallest MSPE
+lam_lasso$cvm[lam_lasso$lambda == lambda_lasso] # extracting the mspe for the optimal lambda answer: 1.804167
+
+# Let's see it for ridge = 1.82235
+lambda_ridge <- lam_ridge$lambda.min
+lam_ridge$cvm[lam_ridge$lambda == lambda_ridge]
+```
+
+Elastic
+
+```{r}
+K <- 5 # 5 fold cross validation
+foldid <- sample(rep(1:K, length.out = nrow(new_data_5)))
+lam_lasso <- cv.glmnet(x=X, y=y,foldid=foldid,alpha=1)
+lambda_lasso <- lam_lasso$lambda.min
+lam_lasso$cvm[lam_lasso$lambda == lambda_lasso]
+
+lam_ridge <- cv.glmnet(x=X, y=y,foldid=foldid,alpha=0)
+lambda_ridge <- lam_ridge$lambda.min
+lam_ridge$cvm[lam_ridge$lambda == lambda_ridge]
+
+# Now, let's do some cross-validation for elastic net
+alpha <- seq(0,1,0.05)
+alpha_cv <- NULL
+for (a in alpha){
+  lam_a <- cv.glmnet(x=X, y=y, foldid=foldid, alpha=a)
+  lambda <- lam_a$lambda.min
+  alpha_cv <- c(alpha_cv, lam_a$cvm[lam_a$lambda == lambda])
+}
+plot(alpha, alpha_cv)
+a <- alpha[which.min(alpha_cv)]
+```
+
+Calculate the prediction lines
+
+```{r}
+ex <- glmnet(x=X, y=y,alpha=1)
+pred_ex <- predict(ex,newx=as.matrix(new_data_5), s=0.05) # newx is the matrix of explanatory variables in your model, and s is the smoothing parameter 
+# You have to specify a newx
+# You can also extract the coefficients from a cv.glmnet
+# Let's extract the predictions from our optimal LASSO and ridge
+pred_lasso <- predict(lam_lasso, newx=as.matrix(new_data_5), s="lambda.min")
+pred_ridge <- predict(lam_ridge, newx=as.matrix(new_data_5), s="lambda.min")
+# You can aslo use an elastic net but must specify your alpha beforehand
+ggplot() +
+  geom_point(aes(x=1:1064, y=y), color = "black", alpha = 0.25, size = 1.5) +
+  geom_point(aes(x=1:1064, y=pred_lasso), colour="green", alpha = 0.6, size = 2) +
+  geom_point(aes(x=1:1064, y=pred_ridge), colour="brown", alpha = 0.6, size = 2)
+```
+
+Can't really see the different colors since the predicted values (pred_lasso and pred_ridge) are extremely close to each other and close to y. Thus the points lie almost exactly on top of each other.
+
+Lasso coefficients - significant variables and actionable insights
+
+```{r}
+coef(lam_lasso, s = lambda_lasso)
+```
